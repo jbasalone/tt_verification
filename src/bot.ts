@@ -58,10 +58,11 @@ client.on("messageCreate", async (message: Message<boolean>) => {
             const timeTravelCount = parseInt(timeTravelMatch[1], 10);
             console.log(`Extracted time travel count: ${timeTravelCount}`);
 
+            // Restrict response to matching profiles
             const username = embed.author?.name?.split(" — ")[0];
             const member = message.guild.members.cache.find((m) => m.user.username === username);
             if (!member) {
-                console.log(`Member with username ${username} not found.`);
+                console.log(`Profile mismatch: Embed profile "${username}" does not match any valid user in this guild.`);
                 return;
             }
 

@@ -103,7 +103,7 @@ async function sendRoleResponseEmbed(
         new ButtonBuilder()
             .setCustomId(`removeRole_${role.id}`)
             .setLabel(`Remove ${role.name}`)
-            .setStyle(ButtonStyle.Danger)
+            .setStyle(ButtonStyle.Premium)
     );
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(buttons);
