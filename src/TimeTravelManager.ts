@@ -28,7 +28,7 @@ export async function assignTimeTravelRole(
 
     if (matchingRoles.length === 0) {
         console.log(`No matching roles found for time travel count: ${timeTravelCount}`);
-        await sendRoleResponseEmbed(channel, member, [], `No roles configured for time travel count: **${timeTravelCount}**.`);
+        await sendRoleResponseEmbed(channel, member, [], `<:timetravel:1333943892751552607> No roles configured for time travel count: **${timeTravelCount}**.`);
         return;
     }
 
@@ -38,7 +38,7 @@ export async function assignTimeTravelRole(
 
     if (rolesToAssign.length === 0) {
         console.log("None of the configured roles exist in the guild.");
-        await sendRoleResponseEmbed(channel, member, [], "Configured roles not found in the guild.");
+        await sendRoleResponseEmbed(channel, member, [], "<:timetravel:1333943892751552607> Configured roles not found in the guild.");
         return;
     }
 
@@ -58,7 +58,7 @@ export async function assignTimeTravelRole(
             channel,
             member,
             alreadyAssignedRoles,
-            `All configured roles are already assigned for time travel count: **${timeTravelCount}**.`
+            `<:timetravel:1333943892751552607> All configured roles are already assigned for time travel count: **${timeTravelCount}**.`
         );
         return;
     }
@@ -73,7 +73,7 @@ export async function assignTimeTravelRole(
     console.log(`Assigning roles: ${rolesToAssign.map((role) => role.name).join(", ")}`);
     await member.roles.add(rolesToAssign);
 
-    await sendRoleResponseEmbed(channel, member, rolesToAssign, `Assigned the following roles for time travel count: **${timeTravelCount}**.`);
+    await sendRoleResponseEmbed(channel, member, rolesToAssign, `<:timetravel:1333943892751552607> Assigned the following roles for time travel count: **${timeTravelCount}**.`);
 }
 
 /**
@@ -90,10 +90,13 @@ async function sendRoleResponseEmbed(
     description: string
 ): Promise<void> {
     const embed = new EmbedBuilder()
-        .setTitle("Role Assignment")
+        .setTitle("Time Travel Role Assignment")
         .setDescription(description)
+        .addFields(
+            {name: 'Next Steps', value: "Get additional roles in your server's self roles channel"},
+        )
         .setColor(roles.length > 0 ? "Green" : "Red")
-        .setFooter({ text: `User: ${member.user.tag}`, iconURL: member.user.displayAvatarURL() });
+        .setFooter({ text: `User Roles Added To: ${member.user.tag}`});
 
     if (roles.length > 0) {
         embed.addFields({ name: "Roles", value: roles.map((r) => `<@&${r.id}>`).join("\n") });
@@ -103,7 +106,7 @@ async function sendRoleResponseEmbed(
         new ButtonBuilder()
             .setCustomId(`removeRole_${member.id}_${role.id}`) // Include member ID in the customId
             .setLabel(`Remove ${role.name}`)
-            .setStyle(ButtonStyle.Danger)
+            .setStyle(ButtonStyle.Primary)
     );
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(buttons);

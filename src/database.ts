@@ -4,7 +4,7 @@ import { Sequelize, DataTypes, Model } from "sequelize";
 const sequelize = new Sequelize({
     dialect: "sqlite",
     storage: "roles.sqlite",
-    logging: console.log, // Enable SQL query logging
+    logging: false, // Enable SQL query logging
 });
 
 // Role configuration model
