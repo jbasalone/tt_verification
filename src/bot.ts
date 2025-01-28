@@ -4,7 +4,7 @@ import {
     assignTimeTravelRole,
     registerTimeTravelRoleMap,
     isInVerificationChannel,
-    deleteRoleMapping
+    deleteRoleMapping,
 } from "./TimeTravelManager";
 import { initDatabase, GuildConfig, RoleConfig } from "./database";
 
@@ -30,7 +30,7 @@ client.once("ready", async () => {
     console.log(`Bot is online as ${client.user?.tag}`);
 });
 
-client.on("messageCreate", async (message: Message<boolean>) => {
+client.on("messageCreate", async (message: Message) => {
     try {
         // Handle Epic RPG bot embeds
         if (message.author.bot && message.author.id === EPIC_RPG_BOT_ID && message.embeds.length > 0 && message.guild) {
@@ -58,16 +58,62 @@ client.on("messageCreate", async (message: Message<boolean>) => {
             const timeTravelCount = parseInt(timeTravelMatch[1], 10);
             console.log(`Extracted time travel count: ${timeTravelCount}`);
 
-            // Restrict response to matching profiles
-            const username = embed.author?.name?.split(" — ")[0];
-            const member = message.guild.members.cache.find((m) => m.user.username === username);
-            if (!member) {
-                console.log(`Profile mismatch: Embed profile "${username}" does not match any valid user in this guild.`);
+            // Fetch recent messages
+            // Fetch recent messages and log all
+            // Fetch recent messages and log them for debugging
+            const fetchedMessages = await message.channel.messages.fetch({ limit: 10 }); // Increased fetch limit
+            const messagesArray = [...fetchedMessages.values()];
+
+            console.log(
+                "Fetched messages:",
+                messagesArray.map((msg) => `${msg.author.tag}: ${msg.content}`).join("\n")
+            );
+
+            // Filter for relevant commands
+            const filteredMessages = messagesArray.filter((msg) => {
+                const isValidCommand =
+                    !msg.author.bot &&
+                    ["rpg p", "rpg profile"].some((cmd) => msg.content.trim().toLowerCase() === cmd);
+                const isSameAuthor = msg.author.username.toLowerCase() === embed.author?.name?.split(" — ")[0]?.toLowerCase();
+                const isRecent = new Date().getTime() - msg.createdTimestamp < 5 * 60 * 1000; // 5-minute window
+
+                if (!isValidCommand) console.log(`Message excluded (Invalid Command): ${msg.author.tag} - ${msg.content}`);
+                if (!isSameAuthor) console.log(`Message excluded (Author Mismatch): ${msg.author.tag} - ${msg.content}`);
+                if (!isRecent) console.log(`Message excluded (Too Old): ${msg.author.tag} - ${msg.content}`);
+
+                return isValidCommand && isSameAuthor && isRecent;
+            });
+
+            console.log(
+                "Filtered messages:",
+                filteredMessages.map((msg) => `${msg.author.tag}: ${msg.content}`).join("\n")
+            );
+
+                // Get the most recent matching message
+            const previousMessage = filteredMessages[0];
+            if (!previousMessage) {
+                const usernameFromEmbed = embed.author?.name?.split(" — ")[0]?.toLowerCase();
+                const messageAuthorUsername = message.author.username.toLowerCase();
+
+                if (usernameFromEmbed && usernameFromEmbed !== messageAuthorUsername) {
+                    // If the embed profile doesn't match the command author's username
+                    console.log(
+                        `Embed profile "${usernameFromEmbed}" does not match the command author "${messageAuthorUsername}".`
+                    );
+                    await message.channel.send("Only the account owner can validate TT levels.");
+                } else {
+                    // General fallback when no valid command is found
+                    console.log("No valid 'rpg p' or 'rpg profile' command found prior to this embed.");
+                    await message.channel.send(
+                        "Could not find a valid `rpg p` or `rpg profile` command before this embed. Please run the command again."
+                    );
+                }
                 return;
             }
 
-            console.log(`Processing time travel roles for ${member.user.tag}.`);
-            await assignTimeTravelRole(member, timeTravelCount, message.channel as TextChannel);
+            console.log(`Found previous command: ${previousMessage.content} by ${previousMessage.author.tag}`);
+            console.log(`Processing time travel roles for ${message.author.tag}.`);
+            await assignTimeTravelRole(message.member!, timeTravelCount, message.channel as TextChannel);
             return;
         }
 
@@ -79,7 +125,6 @@ client.on("messageCreate", async (message: Message<boolean>) => {
         const command = args.shift()?.toLowerCase();
 
         if (!command || command === "") {
-            // Respond with help if no command is provided
             const helpEmbed = new EmbedBuilder()
                 .setTitle("Time Travel Bot Commands")
                 .setColor("Blue")
