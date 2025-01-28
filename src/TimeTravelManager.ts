@@ -101,9 +101,9 @@ async function sendRoleResponseEmbed(
 
     const buttons = roles.map((role) =>
         new ButtonBuilder()
-            .setCustomId(`removeRole_${role.id}`)
+            .setCustomId(`removeRole_${member.id}_${role.id}`) // Include member ID in the customId
             .setLabel(`Remove ${role.name}`)
-            .setStyle(ButtonStyle.Primary)
+            .setStyle(ButtonStyle.Danger)
     );
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(buttons);
@@ -120,7 +120,7 @@ async function sendRoleResponseEmbed(
     collector.on("collect", async (interaction) => {
         if (!interaction.isButton()) return;
 
-        const [action, roleId] = interaction.customId.split("_");
+        const [action, ownerId, roleId] = interaction.customId.split("_");
         if (action !== "removeRole") return;
 
         const roleToRemove = roles.find((r) => r.id === roleId);
@@ -129,14 +129,25 @@ async function sendRoleResponseEmbed(
             return;
         }
 
-        if (interaction.user.id !== member.user.id) {
-            await interaction.reply({ content: "You can only remove your own roles.", ephemeral: true });
+        // Ensure the interaction user matches the profile owner
+        if (interaction.user.id !== ownerId) {
+            await interaction.reply({
+                content: "You can only remove roles from your own profile.",
+                ephemeral: true,
+            });
             return;
         }
 
-        await member.roles.remove(roleToRemove);
-        await interaction.reply({ content: `Removed role: **${roleToRemove.name}**`, ephemeral: true });
-        console.log(`Removed role ${roleToRemove.name} from ${member.user.tag}`);
+        // Remove the role and provide feedback
+        const guildMember = await channel.guild.members.fetch(ownerId);
+        await guildMember.roles.remove(roleToRemove);
+
+        await interaction.reply({
+            content: `Removed role: **${roleToRemove.name}**.`,
+            ephemeral: true,
+        });
+
+        console.log(`Removed role ${roleToRemove.name} from ${guildMember.user.tag}`);
     });
 
     collector.on("end", () => {

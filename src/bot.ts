@@ -33,7 +33,12 @@ client.once("ready", async () => {
 client.on("messageCreate", async (message: Message) => {
     try {
         // Handle Epic RPG bot embeds
-        if (message.author.bot && message.author.id === EPIC_RPG_BOT_ID && message.embeds.length > 0 && message.guild) {
+        if (
+            message.author.bot &&
+            message.author.id === EPIC_RPG_BOT_ID &&
+            message.embeds.length > 0 &&
+            message.guild
+        ) {
             const embed = message.embeds[0];
             console.log("Detected an Epic RPG embed:", embed);
 
@@ -58,63 +63,45 @@ client.on("messageCreate", async (message: Message) => {
             const timeTravelCount = parseInt(timeTravelMatch[1], 10);
             console.log(`Extracted time travel count: ${timeTravelCount}`);
 
-            // Fetch recent messages
-            // Fetch recent messages and log all
-            // Fetch recent messages and log them for debugging
-            const fetchedMessages = await message.channel.messages.fetch({ limit: 10 }); // Increased fetch limit
-            const messagesArray = [...fetchedMessages.values()];
+            // Fetch messages and filter valid ones
+            // Fetch messages
+            const fetchedMessages = await message.channel.messages.fetch({ limit: 50 });
+
+            // Filter and convert to array
+            const messagesArray = Array.from(
+                [...fetchedMessages.values()].filter((msg): msg is Message<true> => msg.inGuild()) // Filter valid guild messages
+            );
 
             console.log(
                 "Fetched messages:",
-                messagesArray.map((msg) => `${msg.author.tag}: ${msg.content}`).join("\n")
+                messagesArray.map((msg) => `${msg.author.username}: ${msg.content}`).join("\n")
             );
 
-            // Filter for relevant commands
-            const filteredMessages = messagesArray.filter((msg) => {
-                const isValidCommand =
-                    !msg.author.bot &&
-                    ["rpg p", "rpg profile"].some((cmd) => msg.content.trim().toLowerCase() === cmd);
-                const isSameAuthor = msg.author.username.toLowerCase() === embed.author?.name?.split(" — ")[0]?.toLowerCase();
-                const isRecent = new Date().getTime() - msg.createdTimestamp < 5 * 60 * 1000; // 5-minute window
-
-                if (!isValidCommand) console.log(`Message excluded (Invalid Command): ${msg.author.tag} - ${msg.content}`);
-                if (!isSameAuthor) console.log(`Message excluded (Author Mismatch): ${msg.author.tag} - ${msg.content}`);
-                if (!isRecent) console.log(`Message excluded (Too Old): ${msg.author.tag} - ${msg.content}`);
-
-                return isValidCommand && isSameAuthor && isRecent;
-            });
-
-            console.log(
-                "Filtered messages:",
-                filteredMessages.map((msg) => `${msg.author.tag}: ${msg.content}`).join("\n")
+            const previousMessage = messagesArray.find((msg) =>
+                ["rpg p", "rpg profile"].includes(msg.content.toLowerCase())
             );
 
-                // Get the most recent matching message
-            const previousMessage = filteredMessages[0];
             if (!previousMessage) {
-                const usernameFromEmbed = embed.author?.name?.split(" — ")[0]?.toLowerCase();
-                const messageAuthorUsername = message.author.username.toLowerCase();
-
-                if (usernameFromEmbed && usernameFromEmbed !== messageAuthorUsername) {
-                    // If the embed profile doesn't match the command author's username
-                    console.log(
-                        `Embed profile "${usernameFromEmbed}" does not match the command author "${messageAuthorUsername}".`
-                    );
-                    await message.channel.send("Only the account owner can validate TT levels.");
-                } else {
-                    // General fallback when no valid command is found
-                    console.log("No valid 'rpg p' or 'rpg profile' command found prior to this embed.");
-                    await message.channel.send(
-                        "Could not find a valid `rpg p` or `rpg profile` command before this embed. Please run the command again."
-                    );
-                }
+                console.log("No valid 'rpg p' or 'rpg profile' command found prior to this embed.");
+                await message.channel.send("Only the account owner can validate time travel levels.");
                 return;
             }
 
-            console.log(`Found previous command: ${previousMessage.content} by ${previousMessage.author.tag}`);
-            console.log(`Processing time travel roles for ${message.author.tag}.`);
-            await assignTimeTravelRole(message.member!, timeTravelCount, message.channel as TextChannel);
-            return;
+            const usernameFromEmbed = embed.author?.name?.split(" — ")[0]?.toLowerCase();
+            const previousAuthor = previousMessage.author.username.toLowerCase();
+
+            if (usernameFromEmbed !== previousAuthor) {
+                console.log(
+                    `Profile mismatch: Embed profile "${usernameFromEmbed}" does not match the command author "${previousAuthor}".`
+                );
+                await message.channel.send("Only the account owner can validate time travel levels.");
+                return;
+            }
+
+            console.log(
+                `Processing time travel roles for ${previousMessage.author.tag} (profile: "${usernameFromEmbed}").`
+            );
+            await assignTimeTravelRole(previousMessage.member!, timeTravelCount, message.channel as TextChannel);
         }
 
         // Command Handling
