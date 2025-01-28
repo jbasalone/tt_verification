@@ -40,23 +40,23 @@ client.on("messageCreate", async (message: Message) => {
             message.guild
         ) {
             const embed = message.embeds[0];
-            console.log("Detected an Epic RPG embed:", embed);
+            //console.log("Detected an Epic RPG embed:", embed);
 
             const isVerifiedChannel = await isInVerificationChannel(message.guild.id, message.channel.id);
             if (!isVerifiedChannel) {
-                console.log("Message ignored: not in the configured verification channel.");
+                //console.log("Message ignored: not in the configured verification channel.");
                 return;
             }
 
             const progressField = embed.fields.find((field) => field.name === "PROGRESS");
             if (!progressField) {
-                console.log("No PROGRESS field found in the embed.");
+                //console.log("No PROGRESS field found in the embed.");
                 return;
             }
 
             const timeTravelMatch = progressField.value.match(/\*\*Time travels\*\*: (\d+)/);
             if (!timeTravelMatch) {
-                console.log("No Time travels value found in the PROGRESS field.");
+                //console.log("No Time travels value found in the PROGRESS field.");
                 return;
             }
 
@@ -72,17 +72,17 @@ client.on("messageCreate", async (message: Message) => {
                 [...fetchedMessages.values()].filter((msg): msg is Message<true> => msg.inGuild()) // Filter valid guild messages
             );
 
-            console.log(
-                "Fetched messages:",
-                messagesArray.map((msg) => `${msg.author.username}: ${msg.content}`).join("\n")
-            );
+            //console.log(
+            //    "Fetched messages:",
+             //   messagesArray.map((msg) => `${msg.author.username}: ${msg.content}`).join("\n")
+            //);
 
             const previousMessage = messagesArray.find((msg) =>
                 ["rpg p", "rpg profile"].includes(msg.content.toLowerCase())
             );
 
             if (!previousMessage) {
-                console.log("No valid 'rpg p' or 'rpg profile' command found prior to this embed.");
+                //console.log("No valid 'rpg p' or 'rpg profile' command found prior to this embed.");
                 await message.channel.send("Only the account owner can validate time travel levels.");
                 return;
             }
@@ -94,7 +94,7 @@ client.on("messageCreate", async (message: Message) => {
                 console.log(
                     `Profile mismatch: Embed profile "${usernameFromEmbed}" does not match the command author "${previousAuthor}".`
                 );
-                await message.channel.send("Only the account owner can validate time travel levels.");
+                await message.channel.send("<:timetravel:1333943892751552607> Only the account owner can validate time travel levels.");
                 return;
             }
 
@@ -115,7 +115,7 @@ client.on("messageCreate", async (message: Message) => {
             const helpEmbed = new EmbedBuilder()
                 .setTitle("Time Travel Bot Commands")
                 .setColor("Blue")
-                .setDescription("Here are the available commands for the Time Travel Bot:")
+                .setDescription("<:timetravel:1333943892751552607> Here are the available commands for the Time Travel Bot:")
                 .addFields(
                     { name: "Set Role", value: "`ep tt setrole <min> <max> <role_id>`\n`ep tt setrole <min>+ <role_id>`" },
                     { name: "Set Verification Channel", value: "`ep tt setchannel`" },
