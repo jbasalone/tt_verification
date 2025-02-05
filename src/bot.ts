@@ -6,14 +6,13 @@ import {
     isInVerificationChannel,
     deleteRoleMapping,
 } from "./TimeTravelManager";
-import { initDatabase, GuildConfig, RoleConfig } from "./database";
+import { initDatabase, GuildConfig, RoleConfig, getPrefix, setPrefix } from "./database"; // Prefix support
 
 dotenv.config();
 
 const TOKEN = process.env.DISCORD_BOT_TOKEN;
 if (!TOKEN) throw new Error("Missing DISCORD_BOT_TOKEN in .env file");
 
-const PREFIX_REGEX = /^ep\s+tt(\s+|$)/i; // Matches 'ep tt' with or without a trailing command
 const EPIC_RPG_BOT_ID = "555955826880413696";
 
 const client = new Client({
@@ -32,57 +31,37 @@ client.once("ready", async () => {
 
 client.on("messageCreate", async (message: Message) => {
     try {
-        // Handle Epic RPG bot embeds
-        if (
-            message.author.bot &&
-            message.author.id === EPIC_RPG_BOT_ID &&
-            message.embeds.length > 0 &&
-            message.guild
-        ) {
-            const embed = message.embeds[0];
-            //console.log("Detected an Epic RPG embed:", embed);
+        if (!message.guild) return; // Ignore non-guild messages
 
-            const isVerifiedChannel = await isInVerificationChannel(message.guild.id, message.channel.id);
-            if (!isVerifiedChannel) {
-                //console.log("Message ignored: not in the configured verification channel.");
-                return;
-            }
+        const guildId = message.guild.id;
+        const prefix = await getPrefix(guildId) || "ep"; // Default to 'ep' if no prefix is set
+        const PREFIX_REGEX = new RegExp(`^${prefix}\\s+tt(\\s+|$)`, "i");
+
+        // Handle Epic RPG bot embeds
+        if (message.author.bot && message.author.id === EPIC_RPG_BOT_ID && message.embeds.length > 0) {
+            const embed = message.embeds[0];
+
+            const isVerifiedChannel = await isInVerificationChannel(guildId, message.channel.id);
+            if (!isVerifiedChannel) return;
 
             const progressField = embed.fields.find((field) => field.name === "PROGRESS");
-            if (!progressField) {
-                //console.log("No PROGRESS field found in the embed.");
-                return;
-            }
+            if (!progressField) return;
 
             const timeTravelMatch = progressField.value.match(/\*\*Time travels\*\*: (\d+)/);
-            if (!timeTravelMatch) {
-                //console.log("No Time travels value found in the PROGRESS field.");
-                return;
-            }
+            if (!timeTravelMatch) return;
 
             const timeTravelCount = parseInt(timeTravelMatch[1], 10);
             console.log(`Extracted time travel count: ${timeTravelCount}`);
 
-            // Fetch messages and filter valid ones
-            // Fetch messages
+            // Fetch and filter messages
             const fetchedMessages = await message.channel.messages.fetch({ limit: 50 });
-
-            // Filter and convert to array
-            const messagesArray = Array.from(
-                [...fetchedMessages.values()].filter((msg): msg is Message<true> => msg.inGuild()) // Filter valid guild messages
-            );
-
-            //console.log(
-            //    "Fetched messages:",
-             //   messagesArray.map((msg) => `${msg.author.username}: ${msg.content}`).join("\n")
-            //);
+            const messagesArray = [...fetchedMessages.values()].filter((msg) => msg.inGuild());
 
             const previousMessage = messagesArray.find((msg) =>
                 ["rpg p", "rpg profile"].includes(msg.content.toLowerCase())
             );
 
             if (!previousMessage) {
-                //console.log("No valid 'rpg p' or 'rpg profile' command found prior to this embed.");
                 await message.channel.send("Only the account owner can validate time travel levels.");
                 return;
             }
@@ -98,9 +77,7 @@ client.on("messageCreate", async (message: Message) => {
                 return;
             }
 
-            console.log(
-                `Processing time travel roles for ${previousMessage.author.tag} (profile: "${usernameFromEmbed}").`
-            );
+            console.log(`Processing time travel roles for ${previousMessage.author.tag} (profile: "${usernameFromEmbed}").`);
             await assignTimeTravelRole(previousMessage.member!, timeTravelCount, message.channel as TextChannel);
         }
 
@@ -115,20 +92,35 @@ client.on("messageCreate", async (message: Message) => {
             const helpEmbed = new EmbedBuilder()
                 .setTitle("Time Travel Bot Commands")
                 .setColor("Blue")
-                .setDescription("<:timetravel:1333943892751552607> Here are the available commands for the Time Travel Bot:")
+                .setDescription(`<:timetravel:1333943892751552607> Here are the available commands for the Time Travel Bot (Prefix: \`${prefix}\`)`)
                 .addFields(
-                    { name: "Set Role", value: "`ep tt setrole <min> <max> <role_id>`\n`ep tt setrole <min>+ <role_id>`" },
-                    { name: "Set Verification Channel", value: "`ep tt setchannel`" },
-                    { name: "View Configuration", value: "`ep tt config`" },
-                    { name: "Delete Role Mapping", value: "`ep tt delrole <role_id>`" }
+                    { name: "Set Role", value: `\`${prefix} tt setrole <min> <max> <role_id>\`\n\`${prefix} tt setrole <min>+ <role_id>\`` },
+                    { name: "Set Verification Channel", value: `\`${prefix} tt setchannel\`` },
+                    { name: "View Configuration", value: `\`${prefix} tt config\`` },
+                    { name: "Delete Role Mapping", value: `\`${prefix} tt delrole <role_id>\`` },
+                    { name: "Set Prefix", value: `\`${prefix} tt setprefix <new_prefix>\`` }
                 )
-                .setFooter({ text: "Use the commands to configure roles and channels for time travel tracking." });
+                .setFooter({ text: "Use the commands to configure roles, channels, and prefixes for time travel tracking." });
 
             await message.reply({ embeds: [helpEmbed] });
             return;
         }
 
-        if (command === "setrole" && message.guild) {
+        if (command === "setprefix" && message.guild) {
+            if (!message.member?.permissions.has("ManageGuild")) {
+                await message.reply("You don't have permission to use this command.");
+                return;
+            }
+
+            const newPrefix = args[0];
+            if (!newPrefix) {
+                await message.reply("Usage: `tt setprefix <new_prefix>`\nExample: `tt setprefix bs`");
+                return;
+            }
+
+            await setPrefix(guildId, newPrefix);
+            await message.reply(`Prefix successfully changed to \`${newPrefix}\`. Use \`${newPrefix} tt\` for commands.`);
+        } else if (command === "setrole" && message.guild) {
             if (!message.member?.permissions.has("ManageRoles")) {
                 await message.reply("You don't have permission to use this command.");
                 return;
@@ -138,7 +130,7 @@ client.on("messageCreate", async (message: Message) => {
             const roleId = args[1];
 
             if (!rangeArg || !roleId) {
-                await message.reply("Usage: `ep tt setrole <min> <max> <role_id>` or `ep tt setrole <min>+ <role_id>`");
+                await message.reply(`Usage: \`${prefix} tt setrole <min> <max> <role_id>\` or \`${prefix} tt setrole <min>+ <role_id>\``);
                 return;
             }
 
@@ -148,7 +140,7 @@ client.on("messageCreate", async (message: Message) => {
 
             if (isNaN(min) || (!isOpenEnded && (max === null || isNaN(max)))) {
                 await message.reply(
-                    "Usage: `ep tt setrole <min> <max> <role_id>` or `ep tt setrole <min>+ <role_id>`\nExample: `ep tt setrole 25+ 123456789012345678`"
+                    `Usage: \`${prefix} tt setrole <min> <max> <role_id>\` or \`${prefix} tt setrole <min>+ <role_id>\`\nExample: \`${prefix} tt setrole 25+ 123456789012345678\``
                 );
                 return;
             }
@@ -161,23 +153,7 @@ client.on("messageCreate", async (message: Message) => {
 
             await registerTimeTravelRoleMap(message.guild.id, min, max, role.id);
 
-            await message.reply(
-                `Configured role with ID \`${role.id}\` for time travel range ${min}-${
-                    max ?? "infinity"
-                }.`
-            );
-        } else if (command === "setchannel" && message.guild) {
-            if (!message.member?.permissions.has("ManageGuild")) {
-                await message.reply("You don't have permission to use this command.");
-                return;
-            }
-
-            await GuildConfig.upsert({
-                guildId: message.guild.id,
-                verificationChannelId: message.channel.id,
-            });
-
-            await message.reply(`Verification channel set to <#${message.channel.id}>.`);
+            await message.reply(`Configured role with ID \`${role.id}\` for time travel range ${min}-${max ?? "infinity"}.`);
         } else if (command === "config" && message.guild) {
             if (!message.member?.permissions.has("ManageGuild")) {
                 await message.reply("You don't have permission to use this command.");
@@ -195,30 +171,14 @@ client.on("messageCreate", async (message: Message) => {
                     {
                         name: "Role Mappings",
                         value: roleConfigs.length > 0
-                            ? roleConfigs
-                                .map((config) => `Role <@&${config.roleId}>: ${config.min} - ${config.max ?? "infinity"}`)
-                                .join("\n")
+                            ? roleConfigs.map((config) => `Role <@&${config.roleId}>: ${config.min} - ${config.max ?? "infinity"}`).join("\n")
                             : "No roles configured."
                     }
                 );
 
             await message.reply({ embeds: [embed] });
-        } else if (command === "delrole" && message.guild) {
-            if (!message.member?.permissions.has("ManageRoles")) {
-                await message.reply("You don't have permission to use this command.");
-                return;
-            }
-
-            const roleId = args[0];
-            if (!roleId) {
-                await message.reply("Usage: `ep tt delrole <role_id>`");
-                return;
-            }
-
-            await deleteRoleMapping(message.guild.id, roleId);
-            await message.reply(`Deleted role mapping for role ID \`${roleId}\`.`);
         } else {
-            await message.reply("Unknown command. Use `ep tt` to view available commands.");
+            await message.reply(`Unknown command. Use \`${prefix} tt\` to view available commands.`);
         }
     } catch (error) {
         console.error("Error handling messageCreate event:", error);
